@@ -55,7 +55,21 @@ def from_chrome():
                 return c.value
         print("  - Chrome: no token_v2 cookie (open reddit.com in Chrome, logged in)")
     except Exception as e:
-        print(f"  - Chrome: couldn't read cookies ({type(e).__name__})")
+        kind = type(e).__name__
+        blocked = isinstance(e, PermissionError) or kind in ("DatabaseError", "OperationalError")
+        if platform.system() == "Darwin" and blocked:
+            print("  - Chrome: macOS blocked access to Chrome's cookies.\n"
+                  "      Fix: System Settings > Privacy & Security > App Management\n"
+                  "      (or Full Disk Access) > turn on your terminal app, then reopen it.\n"
+                  "      Or skip this: copy token_v2 from Chrome DevTools and rerun.")
+        elif "keyring" in kind.lower() or "keychain" in str(e).lower():
+            print("  - Chrome: couldn't unlock Chrome's cookies "
+                  "(click Allow on the Keychain prompt, then rerun)")
+        else:
+            detail = str(e).strip().splitlines()[0][:80] if str(e).strip() else ""
+            print(f"  - Chrome: couldn't read cookies ({kind}{': ' + detail if detail else ''})")
+            if platform.system() == "Windows":
+                print("      Recent Chrome on Windows blocks this; copy the token manually instead.")
     return None
 
 

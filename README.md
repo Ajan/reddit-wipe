@@ -128,6 +128,9 @@ Reddit's listing only goes back about 1000 comments. Either:
 | You see | Do this |
 | --- | --- |
 | `No token found` | Open reddit.com in Chrome while logged in, or use the manual steps above. |
+| `macOS blocked access to Chrome's cookies` (or `DatabaseError`) | Allow your terminal app in **System Settings → Privacy & Security → App Management** (or **Full Disk Access**), then reopen Terminal. You can turn it off again afterwards. Or copy the token manually instead. |
+| `Chrome: skipped (run 'pip install browser-cookie3' ...)` | Activate the venv (`source .venv/bin/activate`) and run `pip install -r requirements.txt`. |
+| Wrong `Authenticated as u/...` | `wipe.py` reads your **default** Chrome profile. For another profile or account, copy that account's `token_v2` manually. |
 | `Token check failed` / `401` | The token expired (they last ~1 hour). Refresh reddit.com and rerun. |
 | `⏸ rate-limit` in the bar | Normal. It waits and continues on its own. |
 | Comments still visible on your profile | Reddit caches profiles; check again in a few minutes, or do a dry run. |
