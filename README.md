@@ -1,7 +1,7 @@
 # reddit-wipe
 
 Bulk-delete **your own** Reddit comments from the command line — one command,
-a live progress bar, and no copying tokens around by hand.
+with a live progress bar, and without copying tokens manually.
 
 ```
 [████████████░░░░░░░░░░░░░░░░░░] 210/501  42%  ✓209 ✗1  ETA 14m  ⏸ rate-limit 4:51
