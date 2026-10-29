@@ -1,0 +1,2 @@
+aiohttp>=3.9
+browser-cookie3>=0.19   # optional: lets wipe.py read your token from Chrome

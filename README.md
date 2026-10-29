@@ -1,157 +1,160 @@
 # reddit-wipe
 
-Bulk-delete **your own** Reddit chat messages and comments from the command line.
-Dry-run by default, deletes only what you authored, and logs every action.
+Bulk-delete **your own** Reddit comments from the command line — one command,
+a live progress bar, and no copying tokens around by hand.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)
+```
+[████████████░░░░░░░░░░░░░░░░░░] 210/501  42%  ✓209 ✗1  ETA 14m  ⏸ rate-limit 4:51
+```
+
+- **Dry run by default** — see what would be deleted before anything changes.
+- **Only your own content** — Reddit enforces this server-side.
+- **Overwrite, then delete** — scrubs each comment's text first, so archive
+  sites that re-scrape edits pick up the blank version.
+- **Finds your login token automatically** from Chrome (or clipboard / a file).
+- **Safe to stop and resume** — Ctrl + C anytime; rerun to finish the rest.
+
+Built on [Alig1493/redact-reddit](https://github.com/Alig1493/redact-reddit),
+which does the actual deleting. This repo adds `wipe.py`, an easier front end.
+
+> ⚠️ **Deletion is permanent.** If you want a copy of your comments, request your
+> data export at [reddit.com/settings/data-request](https://www.reddit.com/settings/data-request)
+> *before* you start.
 
 ---
 
-## Why two tools?
+## Quick start
 
-Reddit chat and Reddit comments live on completely different backends, so each
-needs its own script and its own token:
+You need Python 3.9 or newer.
 
-| Tool | What it deletes | Backend |
-|------|-----------------|---------|
-| `redact_reddit_chat.py` | Your messages in Reddit chat | Matrix (`matrix.redditspace.com`) |
-| `delete_reddit_comments.py` | Your comments | Reddit Data API (`oauth.reddit.com`) |
+### 1. Download and install (once)
 
-Reddit chat runs on Matrix, where "delete" is called **redaction** — it strips a
-message's content. Comments use Reddit's OAuth Data API. The two tokens are
-**not** interchangeable.
-
-## Features
-
-- **Dry run by default** — every tool counts and previews before touching
-  anything. You opt into destruction with `--execute` and a typed confirmation.
-- **Only your own content** — enforced server-side by both Reddit and Matrix.
-- **Optional overwrite** — scrub comment text to a placeholder before deleting,
-  to defeat archive mirrors.
-- **Handles the ~1000-comment cap** — feed a Reddit data-export CSV to reach
-  everything on older accounts.
-- **Clear the chat list** — `--leave` / `--leave-all` drop emptied threads.
-- **Rate-limit aware** — honors `Retry-After` / `X-Ratelimit-*` and backs off.
-- **Audit log** — every action is appended to a `*_log.jsonl` file.
-
-> ⚠️ **Deletion is irreversible.** For chat, redaction removes the message for
-> *everyone* in the conversation, not just your view. Always run the dry run
-> first.
-
-## Requirements
-
-- Python 3.9+
-- [`aiohttp`](https://pypi.org/project/aiohttp/)
-
+**macOS / Linux**
 ```bash
-pip install aiohttp        # or: uv pip install aiohttp
+git clone https://github.com/Ajan/reddit-wipe.git
+cd reddit-wipe
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-## Getting your tokens
+**Windows (PowerShell)**
+```powershell
+git clone https://github.com/Ajan/reddit-wipe.git
+cd reddit-wipe
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
 
-Both scripts authenticate with a token you copy out of your own logged-in
-browser session — no passwords, nothing stored remotely. Full step-by-step
-instructions (with screenshots of where to look in devtools) are in
-**[GETTING_TOKENS.md](GETTING_TOKENS.md)**.
+### 2. Log into reddit.com in Chrome
 
-Short version:
-- **Chat:** copy the `Authorization: Bearer` value from any
-  `matrix.redditspace.com` request, and get your user ID from `whoami`.
-- **Comments:** copy the bearer (`token_v2`) from any `gql.reddit.com` request.
+That's it — `wipe.py` reads your login token from Chrome. On macOS, the first
+run shows a Keychain prompt for **"Chrome Safe Storage"**; click **Allow**.
 
-Tokens are short-lived (~1 hour). On a `401` / `M_UNKNOWN_TOKEN`, re-capture and
-rerun.
+### 3. Dry run (changes nothing)
+
+```bash
+python wipe.py --overwrite
+```
+
+Check the username and comment count it prints:
+
+```
+Authenticated as u/yourname
+Found 501 comments via listing.
+DRY RUN -- would overwrite+delete 501 comments. Re-run with --execute.
+```
+
+### 4. Delete for real
+
+```bash
+python wipe.py --execute --overwrite
+```
+
+Type `DELETE` when asked. Expect roughly **5 minutes per 50 comments** with `--overwrite` — Reddit
+rate-limits deletions, and the bar shows a countdown during each pause.
 
 ---
 
-## Usage — chat
+## If Chrome doesn't work
 
-```bash
-export MATRIX_HOMESERVER="https://matrix.redditspace.com"
-export MATRIX_USER_ID="@t2_xxxxxxxx:reddit.com"
-export MATRIX_TOKEN="...your matrix token..."
+Recent Chrome on **Windows** blocks other programs from reading its cookies, and
+some setups (other browsers, profiles) won't match either. `wipe.py` then falls
+back to:
 
-python redact_reddit_chat.py                       # dry run: count your messages per room
-python redact_reddit_chat.py --execute             # redact everywhere
-python redact_reddit_chat.py --execute --room '!roomid:reddit.com'   # one room
-python redact_reddit_chat.py --execute --leave     # redact, then drop emptied threads
-python redact_reddit_chat.py --execute --leave-all # just leave every room (no redaction)
-```
+1. **`token.txt`** in this folder, or
+2. **your clipboard**.
 
-| Flag | Description |
-|------|-------------|
-| `--execute` | Actually redact (default: dry run). |
-| `--room ID` | Limit to a room ID (repeatable). |
-| `--leave` | Leave + forget each room **after** its messages are redacted. |
-| `--leave-all` | Leave + forget every joined room without redacting. Clears your chat list but does **not** delete message content. |
-| `--reason STR` | Redaction reason recorded on each event. |
-| `--delay SEC` | Seconds between redactions (default `0.5`). |
-| `--limit N` | History page size (default `100`). |
+To get the token by hand:
 
-> **Order matters:** leaving a room usually forfeits your ability to redact in
-> it. If you want both, redact first — which is exactly what `--leave` does.
+1. On reddit.com (logged in), open DevTools — **Cmd + Option + I** (Mac) or
+   **Ctrl + Shift + I** (Windows).
+2. Go to **Application → Cookies → https://www.reddit.com**.
+3. Click the **`token_v2`** row and copy its full value (starts with `eyJ`).
+4. Either keep it on your clipboard, or paste it into `token.txt` — then run
+   `wipe.py` as above.
 
-## Usage — comments
+**Delete `token.txt` when you're done** — it's a live login token. (It's in
+`.gitignore`, so it won't be committed by accident.)
 
-```bash
-export REDDIT_TOKEN="...your token_v2 / bearer value..."
-# REDDIT_USERNAME is auto-detected via /api/v1/me; set it only to override.
+More detail and screenshots: [GETTING_TOKENS.md](GETTING_TOKENS.md).
 
-python delete_reddit_comments.py                       # dry run: count comments
-python delete_reddit_comments.py --execute             # delete
-python delete_reddit_comments.py --execute --overwrite # scrub text, then delete
-python delete_reddit_comments.py --execute --ids-file comments.csv  # everything, via export
-```
+---
 
-| Flag | Description |
-|------|-------------|
-| `--execute` | Actually delete (default: dry run). |
-| `--overwrite` | Edit each comment to a placeholder before deleting. |
-| `--placeholder STR` | Text used by `--overwrite` (default: `.`). |
-| `--ids-file PATH` | Read `t1_` IDs or a Reddit data-export `comments.csv` and delete those instead of crawling the listing. |
-| `--delay SEC` | Seconds between write actions (default `1.0`). |
-| `--limit N` | Listing page size, max 100 (default `100`). |
+## Options
 
-### Reaching every comment (the ~1000 cap)
+Everything after `wipe.py` is passed to the deleter:
 
-Reddit's listing API only pages back through roughly your **last 1000 comments**.
-For older accounts, request your data export at
-[reddit.com/settings/data-request](https://www.reddit.com/settings/data-request),
-then pass the resulting `comments.csv` via `--ids-file` to delete everything.
+| Flag | What it does |
+| --- | --- |
+| `--execute` | Actually delete (default is a dry run). |
+| `--overwrite` | Replace each comment's text before deleting it. |
+| `--placeholder TEXT` | Text used by `--overwrite` (default: `.`). |
+| `--ids-file comments.csv` | Delete the comments listed in your Reddit data export. |
+| `--delay SEC` | Pause between actions (default `1.0`). |
 
-## Logs
+### More than ~1000 comments?
 
-Each run appends newline-delimited JSON to a log file
-(`redaction_log.jsonl`, `comment_deletion_log.jsonl`) recording every
-redaction/deletion and any errors. These are gitignored — they contain
-room/event/comment IDs.
+Reddit's listing only goes back about 1000 comments. Either:
+
+- run `wipe.py` again after the first pass — older comments then appear, or
+- use your data export: `python wipe.py --execute --overwrite --ids-file comments.csv`
+
+---
 
 ## Troubleshooting
 
-A few common ones (full list in [GETTING_TOKENS.md](GETTING_TOKENS.md)):
+| You see | Do this |
+| --- | --- |
+| `No token found` | Open reddit.com in Chrome while logged in, or use the manual steps above. |
+| `Token check failed` / `401` | The token expired (they last ~1 hour). Refresh reddit.com and rerun. |
+| `⏸ rate-limit` in the bar | Normal. It waits and continues on its own. |
+| Comments still visible on your profile | Reddit caches profiles; check again in a few minutes, or do a dry run. |
 
-- **No `oauth.reddit.com` requests in devtools** → use a `gql.reddit.com`
-  request; the bearer is the same.
-- **`'chunk' is a required property`** → you're on an old version; the current
-  chat script talks to the Matrix HTTP API directly to avoid this.
-- **Redacted chats still show in your list** → use `--leave` or `--leave-all`.
-- **`401` mid-run** → token expired; re-capture and rerun.
+Every action is recorded in `comment_deletion_log.jsonl` (ignored by git).
+
+---
+
+## Reddit chat
+
+To remove your Reddit **chat** messages, use `redact_reddit_chat.py` directly —
+see [the upstream instructions](https://github.com/Alig1493/redact-reddit#usage--chat).
+`wipe.py` handles comments only.
+
+## Privacy
+
+- Your token is used only to talk to `oauth.reddit.com`. It's never printed,
+  logged or sent anywhere else.
+- `wipe.py` reads only the `token_v2` cookie for `reddit.com` from Chrome.
+- Nothing is uploaded. Logs stay on your machine and are ignored by git.
 
 ## Disclaimer
 
-This project automates self-service deletion that Reddit already offers manually.
-It acts **only on content you authored** (enforced server-side) and relies on
-**undocumented internal endpoints** that Reddit may change or remove without
-notice. Use it on your own account, at your own risk. Provided as-is, with no
-warranty — see [LICENSE](LICENSE).
-
-## Contributing
-
-Issues and PRs welcome — especially if an endpoint shape changes and a capture
-step in `GETTING_TOKENS.md` no longer matches reality. Please never include real
-tokens, cookies, or exported data in issues or commits.
+This automates deletion Reddit already lets you do by hand. It relies on
+endpoints Reddit may change. Use it on your own account, at your own risk.
+Provided as-is with no warranty.
 
 ## License
 
-[MIT](LICENSE) © 2026 Alig1493
+MIT — see [LICENSE](LICENSE). Original deletion scripts © Alig1493.

@@ -17,3 +17,8 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+
+# Keep requirements (the *.txt rule above would hide it)
+!requirements.txt
+# Explicit, in case the *.txt rule is ever removed
+token.txt
